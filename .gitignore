@@ -1,0 +1,45 @@
+# ==============================================================================
+# Common / Global
+# ==============================================================================
+.DS_Store
+Thumbs.db
+.env
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# ==============================================================================
+# Frontend (frontend_major) - Node
+# ==============================================================================
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# ==============================================================================
+# Backend (Major_project_Medical_Healthcare) - Python
+# ==============================================================================
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environment
+venv/
+ENV/
+env/
+*.venv/
