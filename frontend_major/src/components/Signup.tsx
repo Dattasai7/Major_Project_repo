@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabase } from '../lib/supabase';
+import { useAuth } from '../contexts/AuthContext';
 import { UserPlus } from 'lucide-react';
 
 interface SignupProps {
@@ -10,6 +10,7 @@ export const Signup = ({ onLoginClick }: SignupProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [retypePassword, setRetypePassword] = useState('');
+  const { login } = useAuth();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -30,12 +31,8 @@ export const Signup = ({ onLoginClick }: SignupProps) => {
     setLoading(true);
 
     try {
-      const { error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-
-      if (authError) throw authError;
+      // NOTE: Replace with backend API call later
+      login(email);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during signup');
     } finally {

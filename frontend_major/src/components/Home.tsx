@@ -1,14 +1,13 @@
 import { useState } from 'react';
-import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { LogOut, Send } from 'lucide-react';
 
 export const Home = () => {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const [input, setInput] = useState('');
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    logout();
   };
 
   const handleSubmit = (e: React.FormEvent) => {
