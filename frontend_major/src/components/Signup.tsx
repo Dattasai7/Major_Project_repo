@@ -10,7 +10,7 @@ export const Signup = ({ onLoginClick }: SignupProps) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [retypePassword, setRetypePassword] = useState('');
-  const { login } = useAuth();
+  const { signup } = useAuth();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -31,8 +31,7 @@ export const Signup = ({ onLoginClick }: SignupProps) => {
     setLoading(true);
 
     try {
-      // NOTE: Replace with backend API call later
-      login(email);
+      await signup(email, password);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during signup');
     } finally {

@@ -19,8 +19,7 @@ export const Login = ({ onSignupClick }: LoginProps) => {
     setLoading(true);
 
     try {
-      // NOTE: Replace with backend API call later
-      login(email);
+      await login(email, password);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred during login');
     } finally {
