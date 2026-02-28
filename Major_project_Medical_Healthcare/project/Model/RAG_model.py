@@ -3,9 +3,11 @@ import httpx
 from fastapi import HTTPException, Query
 import requests
 import os
+from dotenv import load_dotenv
 
+load_dotenv()
 HF_API_URL = "https://router.huggingface.co/featherless-ai/v1/completions"
-HEADERS = {"Authorization": f"Bearer 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"}
+HEADERS = {"Authorization": f"Bearer {os.getenv('HUGGINGFACE_API_KEY')}"}
 
 async def ai_diagnose(symptoms: str = str, knowledge_chunks = []):
     print(HEADERS)
