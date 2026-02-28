@@ -16,6 +16,7 @@ export const Home = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [sending, setSending] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [inputOption, setInputOption] = useState<'disease' | 'symptoms' | null>(null);
 
   // Load chat history on mount
   useEffect(() => {
@@ -40,7 +41,10 @@ export const Home = () => {
     e.preventDefault();
     if (!input.trim() || sending) return;
 
-    const userMessage = input.trim();
+    const prefix = inputOption === 'disease' ? 'Disease Info: ' : 'Symptoms: ';
+    const userMessage = prefix + input.trim();
+    const displayMessage = input.trim(); // What we show in the UI
+
     setInput('');
     setSending(true);
 
@@ -49,7 +53,7 @@ export const Home = () => {
       setMessages((prev) => [
         ...prev,
         {
-          message: data.message,
+          message: displayMessage,
           response: data.response,
           timestamp: data.timestamp,
         },
@@ -60,7 +64,7 @@ export const Home = () => {
       setMessages((prev) => [
         ...prev,
         {
-          message: userMessage,
+          message: displayMessage,
           response: { error: err instanceof Error ? err.message : 'Something went wrong' },
           timestamp: new Date().toISOString(),
         },
@@ -144,29 +148,70 @@ export const Home = () => {
           )}
         </div>
 
-        {/* Input form */}
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl shadow-lg p-4">
-          <div className="flex gap-3">
-            <input
-              id="userInput"
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
-              placeholder="Describe your symptoms..."
-              required
-              disabled={sending}
-            />
-            <button
-              type="submit"
-              disabled={sending}
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Send className="w-5 h-5" />
-              {sending ? 'Sending...' : 'Send'}
-            </button>
-          </div>
-        </form>
+        {/* Input area */}
+        <div className="bg-white rounded-2xl shadow-lg p-4">
+          {!inputOption ? (
+            <div className="flex flex-col sm:flex-row gap-4 justify-center items-center p-4">
+              <button
+                onClick={() => setInputOption('disease')}
+                className="flex-1 max-w-sm p-6 border-2 border-dashed border-blue-300 rounded-xl hover:border-blue-500 hover:bg-blue-50 transition flex flex-col items-center justify-center gap-2 group"
+              >
+                <div className="p-3 bg-blue-100 text-blue-600 rounded-full group-hover:scale-110 transition">
+                  <Bot className="w-6 h-6" />
+                </div>
+                <span className="font-semibold text-gray-700">Enter the disease</span>
+                <span className="text-xs text-gray-500 text-center">I know the disease and want to know more about it.</span>
+              </button>
+
+              <button
+                onClick={() => setInputOption('symptoms')}
+                className="flex-1 max-w-sm p-6 border-2 border-dashed border-sky-300 rounded-xl hover:border-sky-500 hover:bg-sky-50 transition flex flex-col items-center justify-center gap-2 group"
+              >
+                <div className="p-3 bg-sky-100 text-sky-600 rounded-full group-hover:scale-110 transition">
+                  <UserIcon className="w-6 h-6" />
+                </div>
+                <span className="font-semibold text-gray-700">Enter the symptoms</span>
+                <span className="text-xs text-gray-500 text-center">I have symptoms and want to identify potential diseases.</span>
+              </button>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+              <div className="flex justify-between items-center mb-1">
+                <span className="text-sm font-medium text-gray-600">
+                  {inputOption === 'disease' ? 'Disease Information Mode' : 'Symptom Checker Mode'}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => { setInputOption(null); setInput(''); }}
+                  className="text-xs text-gray-500 hover:text-red-500 transition"
+                >
+                  Change Option
+                </button>
+              </div>
+              <div className="flex gap-3">
+                <input
+                  id="userInput"
+                  type="text"
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  className="flex-1 px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+                  placeholder={inputOption === 'disease' ? "e.g., Type 2 Diabetes" : "e.g., Headache, fever, and fatigue..."}
+                  required
+                  disabled={sending}
+                  autoFocus
+                />
+                <button
+                  type="submit"
+                  disabled={sending || !input.trim()}
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 focus:ring-4 focus:ring-blue-200 transition flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <Send className="w-5 h-5" />
+                  {sending ? 'Sending...' : 'Send'}
+                </button>
+              </div>
+            </form>
+          )}
+        </div>
       </div>
     </div>
   );

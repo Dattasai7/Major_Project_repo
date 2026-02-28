@@ -1,53 +1,31 @@
-const API_BASE = "http://localhost:8000";
+// Mock user data for prototyping
+const MOCK_USER = {
+    id: "1",
+    email: "test@example.com"
+};
 
-/**
- * Generic API request helper that attaches JWT from localStorage.
- */
-async function apiRequest(endpoint: string, options: RequestInit = {}): Promise<any> {
-    const token = localStorage.getItem("token");
-
-    const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-        ...(options.headers as Record<string, string> || {}),
-    };
-
-    if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(`${API_BASE}${endpoint}`, {
-        ...options,
-        headers,
-    });
-
-    if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ detail: "Request failed" }));
-        throw new Error(errorData.detail || `HTTP ${response.status}`);
-    }
-
-    return response.json();
-}
+const MOCK_TOKEN = "dummy-jwt-token-123";
 
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
-export async function signupApi(email: string, password: string) {
-    const data = await apiRequest("/auth/signup", {
-        method: "POST",
-        body: JSON.stringify({ email, password }),
-    });
-    // Store JWT
-    localStorage.setItem("token", data.access_token);
-    return data.user;
+export async function signupApi(email: string, _password: string) {
+    console.log("Mock Signup:", email);
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    localStorage.setItem("token", MOCK_TOKEN);
+    // Return the email they used so the UI reflects their input
+    return { ...MOCK_USER, email };
 }
 
-export async function loginApi(email: string, password: string) {
-    const data = await apiRequest("/auth/login", {
-        method: "POST",
-        body: JSON.stringify({ email, password }),
-    });
-    // Store JWT
-    localStorage.setItem("token", data.access_token);
-    return data.user;
+export async function loginApi(email: string, _password: string) {
+    console.log("Mock Login:", email);
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // In a real app we'd validate, but for mock, just succeed
+    localStorage.setItem("token", MOCK_TOKEN);
+    return { ...MOCK_USER, email };
 }
 
 export function logoutApi() {
@@ -55,18 +33,51 @@ export function logoutApi() {
 }
 
 export async function getCurrentUser() {
-    return apiRequest("/auth/me");
+    // Simulate network delay
+    await new Promise(resolve => setTimeout(resolve, 200));
+
+    // Check if they are "logged in" by checking the token
+    if (!localStorage.getItem("token")) {
+        throw new Error("No valid session");
+    }
+
+    return MOCK_USER;
 }
 
 // ─── Chat ────────────────────────────────────────────────────────────────────
 
 export async function sendChat(message: string) {
-    return apiRequest("/chat", {
-        method: "POST",
-        body: JSON.stringify({ message }),
-    });
+    console.log("Mock Send Chat:", message);
+    await new Promise(resolve => setTimeout(resolve, 800)); // Simulate thinking
+
+    // Mock a response based on keywords or just return a default
+    let mockResponse;
+    if (message.toLowerCase().includes("symptoms")) {
+        mockResponse = { identified_disease: "Common Cold", symptoms: "Runny nose, sore throat, mild fever." };
+    } else if (message.toLowerCase().includes("disease")) {
+        mockResponse = "Based on the name, this is a respiratory illness. Ensure plenty of fluids and rest.";
+    } else {
+        mockResponse = "I am a mocked diagnostic AI. I received your message: " + message;
+    }
+
+    return {
+        message: message, // The user's input
+        response: mockResponse,
+        timestamp: new Date().toISOString()
+    };
 }
 
 export async function getChatHistory() {
-    return apiRequest("/chat/history");
+    await new Promise(resolve => setTimeout(resolve, 300));
+
+    return {
+        history: [
+            {
+                id: "msg_1",
+                message: "Hello",
+                response: "Hi there! This is a mock chat history. Are you here to check symptoms or learn about a disease?",
+                timestamp: new Date(Date.now() - 10000).toISOString()
+            }
+        ]
+    };
 }
