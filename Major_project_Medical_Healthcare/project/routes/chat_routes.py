@@ -9,13 +9,12 @@ from ..Model.RAG_model import ai_diagnose
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
-# RAG knowledge base (same as app.py)
-RAG_DATA_SOURCE = """
-Symptom: memory loss, confusion, disorientation. Disease: Alzheimer
-Symptom: high blood sugar, excessive thirst, frequent urination. Disease: Diabetes
-Symptom: wheezing, shortness of breath, chest tightness. Disease: Asthma
-"""
-knowledge_chunks = [line.strip() for line in RAG_DATA_SOURCE.splitlines() if line.strip()]
+# RAG knowledge base (synced with app.py)
+DEFAULT_KNOWLEDGE_CHUNKS = [
+    "Symptom: memory loss, confusion, disorientation. Disease: Alzheimers",
+    "Symptom: high blood sugar, excessive thirst, frequent urination. Disease: Diabetes",
+    "Symptom: wheezing, shortness of breath, chest tightness. Disease: Asthma"
+]
 
 
 @router.post("")
@@ -28,7 +27,7 @@ async def send_chat(request: ChatRequest, current_user: dict = Depends(get_curre
 
     # Call the existing RAG model
     try:
-        llm_response = await ai_diagnose(user_message, knowledge_chunks)
+        llm_response = await ai_diagnose(user_message, DEFAULT_KNOWLEDGE_CHUNKS)
     except Exception as e:
         llm_response = {"error": str(e), "source": "AI-RAG-Diagnosis"}
 
