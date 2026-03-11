@@ -2,9 +2,9 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, status, Depends
 
-from ..models import SignupRequest, LoginRequest, TokenResponse, UserResponse
-from ..auth import hash_password, verify_password, create_access_token, get_current_user
-from ..database import users_collection
+from models import SignupRequest, LoginRequest, TokenResponse, UserResponse
+from auth import hash_password, verify_password, create_access_token, get_current_user
+from database import users_collection
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 

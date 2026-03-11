@@ -19,18 +19,20 @@ async def ai_diagnose(symptoms: str = str, knowledge_chunks = []):
     
     # 2. Llama 3.1 Prompting
     llama_prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-    Identify the disease from the context. Output ONLY the name. If unknown, say Unknown.
+    Identify the disease from the context. If the exact symptoms are not in the context, use your general medical knowledge to provide a prediction and a brief general idea of what might be causing it. Output in this format:
+    Disease: [Disease Name]
+    Idea: [Brief idea/prediction]
     Context: {context}
     <|eot_id|><|start_header_id|>user<|end_header_id|>
     Symptoms: {symptoms}
-    Disease: <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
+    <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
 
     # 3. Request to Hugging Face
     payload = {
         "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
         "prompt": llama_prompt,
-        "temperature": 0.1,
-        "max_tokens": 20,
+        "temperature": 0.3,
+        "max_tokens": 100,
         "stop": ["<|eot_id|>"]
     }
     
@@ -39,18 +41,37 @@ async def ai_diagnose(symptoms: str = str, knowledge_chunks = []):
     if hf_res.status_code != 200:
         raise HTTPException(status_code=500, detail="AI service currently unavailable.")
         
-    disease_name = hf_res.json()['choices'][0]['text'].strip()
+    response_text = hf_res.json()['choices'][0]['text'].strip()
 
-    if "Unknown" in disease_name or not disease_name:
-        raise HTTPException(status_code=404, detail="Could not map symptoms to a known disease.")
+    # Parse Disease and Idea from response
+    disease_name = ""
+    idea = ""
+    for line in response_text.split('\n'):
+        if line.startswith("Disease:"):
+            disease_name = line.replace("Disease:", "").strip()
+        elif line.startswith("Idea:"):
+            idea = line.replace("Idea:", "").strip()
+
+    if not disease_name:
+        disease_name = response_text # Fallback if format is not exactly followed
+        idea = "Could not cleanly parse the prediction."
+
+    if "Unknown" in disease_name and not idea:
+        raise HTTPException(status_code=404, detail="Could not predict a disease based on the given symptoms.")
 
     # 4. Trigger the shared FDA search logic
-    disease_name = disease_name.lower()
-    data = await fetch_from_fda(disease_name, "approved")
+    disease_search_term = disease_name.lower().split()[0] if disease_name else "" # Use first word for search
+    data = None
+    try:
+        data = await fetch_from_fda(disease_search_term, "approved")
+    except Exception as e:
+        data = {"error": f"Could not fetch FDA data for {disease_name}"}
     
     return {
         "source": "AI-RAG-Diagnosis",
         "identified_disease": disease_name,
+        "general_idea": idea,
         "symptoms": symptoms,
-        "data": data
+        "data": data,
+        "raw_response": response_text
     }

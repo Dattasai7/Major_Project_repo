@@ -5,11 +5,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 from dotenv import load_dotenv
 
-from .Model.FDA_search import get_drugs, fetch_from_fda
-from .Model.RAG_model import ai_diagnose
-from .auth import get_current_user
-from .routes.auth_routes import router as auth_router
-from .routes.chat_routes import router as chat_router
+from Model.FDA_search import get_drugs, fetch_from_fda
+from Model.RAG_model import ai_diagnose
+from routes.auth_routes import router as auth_router
+from routes.chat_routes import router as chat_router
 
 # Load environment variables
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(__file__)), ".env"))
@@ -33,7 +32,13 @@ app.include_router(chat_router)
 DEFAULT_KNOWLEDGE_CHUNKS = [
     "Symptom: memory loss, confusion, disorientation. Disease: Alzheimers",
     "Symptom: high blood sugar, excessive thirst, frequent urination. Disease: Diabetes",
-    "Symptom: wheezing, shortness of breath, chest tightness. Disease: Asthma"
+    "Symptom: wheezing, shortness of breath, chest tightness. Disease: Asthma",
+    "Symptom: fever, chills, muscle aches, fatigue. Disease: Flu",
+    "Symptom: persistent cough, weight loss, night sweats. Disease: Tuberculosis",
+    "Symptom: severe headache, nausea, sensitivity to light. Disease: Migraine",
+    "Symptom: chest pain, shortness of breath, left arm pain. Disease: Heart Attack",
+    "Symptom: joint pain, stiffness, swelling. Disease: Arthritis",
+    "If the symptom is not in KB, then provide a general idea and predict the most likely disease based on general medical knowledge."
 ]
 
 
@@ -41,7 +46,6 @@ DEFAULT_KNOWLEDGE_CHUNKS = [
 async def search_drugs(
     disease: str,
     status: str = Query("approved", description="e.g., approved, experimental"),
-    current_user: dict = Depends(get_current_user),
 ):
     return await get_drugs(disease, status)
 
@@ -50,7 +54,6 @@ async def search_drugs(
 async def ai_diagnose_endpoint(
     symptoms: str = Query(..., description="Describe your symptoms"),
     knowledge_chunks: Optional[List[str]] = Query(None),
-    current_user: dict = Depends(get_current_user),
 ):
     # If URL params are empty, use the DEFAULT list
     chunks_to_use = knowledge_chunks if knowledge_chunks else DEFAULT_KNOWLEDGE_CHUNKS

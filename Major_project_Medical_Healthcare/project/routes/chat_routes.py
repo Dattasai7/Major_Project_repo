@@ -2,10 +2,10 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 
-from ..models import ChatRequest
-from ..auth import get_current_user
-from ..database import chat_history_collection
-from ..Model.RAG_model import ai_diagnose
+from models import ChatRequest
+from auth import get_current_user
+from database import chat_history_collection
+from Model.RAG_model import ai_diagnose
 
 router = APIRouter(prefix="/chat", tags=["Chat"])
 
