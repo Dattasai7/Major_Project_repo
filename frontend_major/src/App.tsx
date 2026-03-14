@@ -4,7 +4,7 @@ import { Login } from './components/Login';
 import { Signup } from './components/Signup';
 import { Home } from './components/Home';
 
-type View = 'login' | 'signup';
+type View = 'login' | 'signup';//datta
 
 const AppContent = () => {
   const { user, loading } = useAuth();
