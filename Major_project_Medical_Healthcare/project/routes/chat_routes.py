@@ -13,21 +13,30 @@ router = APIRouter(prefix="/chat", tags=["Chat"])
 DEFAULT_KNOWLEDGE_CHUNKS = [
     "Symptom: memory loss, confusion, disorientation. Disease: Alzheimers",
     "Symptom: high blood sugar, excessive thirst, frequent urination. Disease: Diabetes",
-    "Symptom: wheezing, shortness of breath, chest tightness. Disease: Asthma"
+    "Symptom: wheezing, shortness of breath, chest tightness. Disease: Asthma",
+    "Symptom: fever, chills, muscle aches, fatigue. Disease: Flu",
+    "Symptom: persistent cough, weight loss, night sweats. Disease: Tuberculosis",
+    "Symptom: severe headache, nausea, sensitivity to light. Disease: Migraine",
+    "Symptom: chest pain, shortness of breath, left arm pain. Disease: Heart Attack",
+    "Symptom: joint pain, stiffness, swelling. Disease: Arthritis",
+    "If the symptom is not in KB, then provide a general idea and predict the most likely disease based on general medical knowledge."
 ]
 
 
 @router.post("")
 async def send_chat(request: ChatRequest, current_user: dict = Depends(get_current_user)):
     """
-    Receive a user message, run it through the AI diagnose RAG model,
-    store both the message and the LLM response in chat_history, and return the response.
+    Receive a user message, route based on mode (fda or experimental),
+    store both the message and the response in chat_history, and return the response.
     """
     user_message = request.message
+    mode = request.mode or "experimental"
 
-    # Call the existing RAG model
     try:
-        llm_response = await ai_diagnose(user_message, DEFAULT_KNOWLEDGE_CHUNKS)
+        # Map frontend mode → venkat's source_type
+        # "fda" → "approved", "experimental" → "experimental"
+        source_type = "approved" if mode == "fda" else "experimental"
+        llm_response = await ai_diagnose(user_message, DEFAULT_KNOWLEDGE_CHUNKS, source_type)
     except Exception as e:
         llm_response = {"error": str(e), "source": "AI-RAG-Diagnosis"}
 
@@ -36,6 +45,7 @@ async def send_chat(request: ChatRequest, current_user: dict = Depends(get_curre
         "user_id": current_user["id"],
         "user_email": current_user["email"],
         "message": user_message,
+        "mode": mode,
         "response": llm_response,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
@@ -43,6 +53,7 @@ async def send_chat(request: ChatRequest, current_user: dict = Depends(get_curre
 
     return {
         "message": user_message,
+        "mode": mode,
         "response": llm_response,
         "timestamp": chat_doc["timestamp"],
     }
@@ -60,6 +71,7 @@ async def get_chat_history(current_user: dict = Depends(get_current_user)):
         history.append({
             "id": str(doc["_id"]),
             "message": doc["message"],
+            "mode": doc.get("mode", "experimental"),
             "response": doc["response"],
             "timestamp": doc["timestamp"],
         })

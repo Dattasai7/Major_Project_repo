@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useApp } from '../context/AppContext';
+import { signup as apiSignup } from '../api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -13,13 +14,14 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { motion } from 'motion/react';
-import { Sparkles, ArrowLeft, ChevronRight } from 'lucide-react';
+import { Sparkles, ArrowLeft, ChevronRight, Loader2 } from 'lucide-react';
 
 export const Signup = () => {
   const navigate = useNavigate();
-  const { setUser } = useApp();
+  const { setUser, setAuthToken } = useApp();
 
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -35,16 +37,28 @@ export const Signup = () => {
     conditions: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (formData.password !== formData.retypePassword) {
       setError('Passwords do not match');
       return;
     }
     setError('');
-    const { retypePassword, ...userData } = formData;
-    setUser(userData);
-    navigate('/home');
+    setLoading(true);
+
+    try {
+      const { retypePassword, ...payload } = formData;
+      const res = await apiSignup(payload);
+
+      // Store token and user data
+      setAuthToken(res.access_token);
+      setUser(res.user as any);
+      navigate('/home');
+    } catch (err: any) {
+      setError(err.message || 'Signup failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const updateField = (field: string, value: string) => {
@@ -106,7 +120,7 @@ export const Signup = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {error && <div className="text-red-500 text-sm font-medium">{error}</div>}
+            {error && <div className="text-red-500 text-sm font-medium bg-red-500/10 border border-red-500/20 rounded-lg p-3">{error}</div>}
             <div className="grid md:grid-cols-2 gap-6">
               <div className="space-y-2">
                 <Label htmlFor="email">Email *</Label>
@@ -274,10 +288,20 @@ export const Signup = () => {
             <Button
               type="submit"
               size="lg"
+              disabled={loading}
               className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-lg shadow-violet-500/30 group"
             >
-              Save and Proceed
-              <ChevronRight className="size-5 ml-2 group-hover:translate-x-1 transition-transform" />
+              {loading ? (
+                <>
+                  <Loader2 className="size-5 mr-2 animate-spin" />
+                  Creating Account...
+                </>
+              ) : (
+                <>
+                  Save and Proceed
+                  <ChevronRight className="size-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                </>
+              )}
             </Button>
           </form>
         </div>

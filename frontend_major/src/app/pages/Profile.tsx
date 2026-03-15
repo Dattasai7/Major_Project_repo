@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useApp } from '../context/AppContext';
+import { updateProfile } from '../api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
@@ -13,13 +14,15 @@ import {
   SelectValue,
 } from '../components/ui/select';
 import { motion } from 'motion/react';
-import { ArrowLeft, Save, User as UserIcon, Settings, LogOut } from 'lucide-react';
+import { ArrowLeft, Save, User as UserIcon, LogOut, Loader2 } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 
 export const Profile = () => {
   const navigate = useNavigate();
-  const { user, setUser, theme } = useApp();
+  const { user, setUser, theme, logout } = useApp();
   const [editMode, setEditMode] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
   const [formData, setFormData] = useState(user || {
     name: '',
     ageRange: '',
@@ -37,13 +40,22 @@ export const Profile = () => {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleSave = () => {
-    setUser(formData);
-    setEditMode(false);
+  const handleSave = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      const updated = await updateProfile(formData);
+      setUser(updated as any);
+      setEditMode(false);
+    } catch (err: any) {
+      setError(err.message || 'Failed to save profile');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const handleLogout = () => {
-    setUser(null);
+    logout();
     navigate('/');
   };
 
@@ -97,6 +109,12 @@ export const Profile = () => {
               </Button>
             )}
           </div>
+
+          {error && (
+            <div className="text-red-500 text-sm font-medium bg-red-500/10 border border-red-500/20 rounded-lg p-3 mb-6">
+              {error}
+            </div>
+          )}
 
           <Tabs defaultValue="personal" className="space-y-6">
             <TabsList className={theme === 'dark' ? 'bg-slate-800' : 'bg-slate-100'}>
@@ -282,10 +300,15 @@ export const Profile = () => {
                 <div className="flex gap-3">
                   <Button
                     onClick={handleSave}
+                    disabled={saving}
                     className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white"
                   >
-                    <Save className="size-4 mr-2" />
-                    Save Changes
+                    {saving ? (
+                      <Loader2 className="size-4 mr-2 animate-spin" />
+                    ) : (
+                      <Save className="size-4 mr-2" />
+                    )}
+                    {saving ? 'Saving...' : 'Save Changes'}
                   </Button>
                   <Button
                     onClick={() => {
@@ -314,10 +337,15 @@ export const Profile = () => {
 
               <Button
                 onClick={handleSave}
+                disabled={saving}
                 className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white"
               >
-                <Save className="size-4 mr-2" />
-                Save Personalization
+                {saving ? (
+                  <Loader2 className="size-4 mr-2 animate-spin" />
+                ) : (
+                  <Save className="size-4 mr-2" />
+                )}
+                {saving ? 'Saving...' : 'Save Personalization'}
               </Button>
             </TabsContent>
           </Tabs>

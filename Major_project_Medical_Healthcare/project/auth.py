@@ -66,8 +66,13 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
         raise credentials_exception
 
     # Return a safe user dict (no password)
-    return {
+    profile_fields = ["name", "ageRange", "country", "city", "language",
+                       "gender", "height", "weight", "conditions", "personalization"]
+    result = {
         "id": str(user["_id"]),
         "email": user["email"],
         "created_at": user.get("created_at", ""),
     }
+    for field in profile_fields:
+        result[field] = user.get(field)
+    return result

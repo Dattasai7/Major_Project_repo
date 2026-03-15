@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { useApp } from '../context/AppContext';
+import { sendChat } from '../api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { ScrollArea } from '../components/ui/scroll-area';
@@ -26,6 +27,7 @@ import {
   Edit2,
   Pin,
   Trash2,
+  Loader2,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -34,9 +36,89 @@ import {
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu';
 
+/**
+ * Format a backend response object into a readable string for the chat bubble.
+ */
+function formatResponse(response: any): string {
+  if (!response) return 'No response received.';
+  if (typeof response === 'string') return response;
+
+  // Error response
+  if (response.error) {
+    return `⚠️ ${response.error}`;
+  }
+
+  // Venkat's new ai_diagnose response shape
+  if (response.identified_condition) {
+    let text = `🔬 **Diagnosis Result**\n\n`;
+    text += `**Identified Condition:** ${response.identified_condition}\n`;
+    text += `**Input Type:** ${response.input_type || 'N/A'}\n\n`;
+
+    // Approved medications (from FDA)
+    const meds = response.approved_medications || [];
+    if (meds.length > 0) {
+      text += `💊 **Approved Medications** (${meds.length} found)\n\n`;
+      meds.slice(0, 5).forEach((drug: any, i: number) => {
+        text += `**${i + 1}. ${drug.drug_name || 'Unknown'}**\n`;
+        if (drug.primary_use) text += `   Use: ${drug.primary_use}\n`;
+        if (drug.start_dosage) text += `   Dosage: ${drug.start_dosage}\n`;
+        if (drug.frequency) text += `   Frequency: ${drug.frequency}\n`;
+        if (drug.important_warning) text += `   ⚠️ ${drug.important_warning}\n`;
+        text += '\n';
+      });
+    }
+
+    // Experimental trials (from ClinicalTrials.gov)
+    const trials = response.experimental_trials || [];
+    if (trials.length > 0) {
+      text += `🧪 **Experimental Trials** (${trials.length} found)\n\n`;
+      trials.slice(0, 5).forEach((trial: any, i: number) => {
+        text += `**${i + 1}. ${trial.trial_title || 'Untitled Trial'}**\n`;
+        text += `   Drug: ${trial.drug_name || 'N/A'}\n`;
+        text += `   Status: ${trial.status || 'N/A'}\n`;
+        if (trial.description) text += `   ${trial.description}\n`;
+        text += '\n';
+      });
+    }
+
+    if (meds.length === 0 && trials.length === 0) {
+      text += 'No medications or trials found for this condition.';
+    }
+
+    return text;
+  }
+
+  // Legacy: AI-RAG-Diagnosis response (old shape)
+  if (response.source === 'AI-RAG-Diagnosis') {
+    let text = `🔬 **Diagnosis Result**\n\n`;
+    text += `**Identified Disease:** ${response.identified_disease || 'Unknown'}\n`;
+    text += `**Symptoms:** ${response.symptoms || 'N/A'}\n\n`;
+    if (response.data) {
+      text += `**Details:**\n${typeof response.data === 'string' ? response.data : JSON.stringify(response.data, null, 2)}`;
+    }
+    return text;
+  }
+
+  // FDA search response
+  if (response.source === 'openFDA') {
+    const drugs = response.data || [];
+    if (drugs.length === 0) return 'No FDA-approved drugs found for this query.';
+    let text = `💊 **FDA Drug Results** (${drugs.length} found)\n\n`;
+    drugs.slice(0, 5).forEach((drug: any, i: number) => {
+      text += `**${i + 1}. ${drug.brand_name}**\n`;
+      text += `   Generic: ${drug.generic_name}\n`;
+      text += `   Manufacturer: ${drug.manufacturer}\n`;
+      text += `   Purpose: ${drug.purpose}\n\n`;
+    });
+    return text;
+  }
+
+  return JSON.stringify(response, null, 2);
+}
+
 export const Home = () => {
   const navigate = useNavigate();
-  const { user, theme, toggleTheme, chatHistory, addChatMessage } = useApp();
+  const { user, theme, toggleTheme, chatHistory, addChatMessage, updateChatMessages } = useApp();
   const [message, setMessage] = useState('');
   const [mode, setMode] = useState<'fda' | 'experimental'>('fda');
   const [currentChat, setCurrentChat] = useState<{
@@ -46,6 +128,7 @@ export const Home = () => {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [editingChatId, setEditingChatId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { renameChat, pinChat, deleteChat } = useApp();
@@ -67,8 +150,8 @@ export const Home = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [currentChat.messages]);
 
-  const handleSendMessage = () => {
-    if (!message.trim()) return;
+  const handleSendMessage = async () => {
+    if (!message.trim() || isLoading) return;
 
     const userMessage = {
       role: 'user' as const,
@@ -76,25 +159,45 @@ export const Home = () => {
       mode,
     };
 
-    const assistantMessage = {
-      role: 'assistant' as const,
-      content: `Thank you for your ${mode === 'fda' ? 'FDA-approved' : 'experimental'} query. As an AI health assistant, I've analyzed your request: "${message}". This is a simulated response. In a real application, this would provide personalized health insights based on your profile.`,
-    };
-
-    const updatedMessages = [...currentChat.messages, userMessage, assistantMessage];
-    setCurrentChat({ ...currentChat, messages: updatedMessages });
-
-    // Save to chat history if it's a new chat
-    if (currentChat.messages.length === 0) {
-      addChatMessage({
-        id: currentChat.id,
-        title: message.slice(0, 50),
-        timestamp: new Date(),
-        messages: updatedMessages,
-      });
-    }
-
+    const updatedWithUser = [...currentChat.messages, userMessage];
+    setCurrentChat({ ...currentChat, messages: updatedWithUser });
     setMessage('');
+    setIsLoading(true);
+
+    try {
+      const res = await sendChat(message, mode);
+      const assistantContent = formatResponse(res.response);
+
+      const assistantMessage = {
+        role: 'assistant' as const,
+        content: assistantContent,
+      };
+
+      const allMessages = [...updatedWithUser, assistantMessage];
+      setCurrentChat((prev) => ({ ...prev, messages: allMessages }));
+
+      // Save to chat history
+      if (currentChat.messages.length === 0) {
+        addChatMessage({
+          id: currentChat.id,
+          title: message.slice(0, 50),
+          timestamp: new Date(),
+          messages: allMessages,
+        });
+      } else {
+        // Update existing chat in history
+        updateChatMessages(currentChat.id, allMessages);
+      }
+    } catch (err: any) {
+      const errorMessage = {
+        role: 'assistant' as const,
+        content: `⚠️ ${err.message || 'Something went wrong. Please try again.'}`,
+      };
+      const allMessages = [...updatedWithUser, errorMessage];
+      setCurrentChat((prev) => ({ ...prev, messages: allMessages }));
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const startNewChat = () => {
@@ -319,7 +422,7 @@ export const Home = () => {
                     key={index}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
+                    transition={{ delay: index * 0.05 }}
                     className={`flex gap-4 ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
                   >
                     {msg.role === 'assistant' && (
@@ -341,7 +444,7 @@ export const Home = () => {
                           {msg.mode === 'fda' ? 'FDA Approved' : 'Experimental'}
                         </span>
                       )}
-                      <p>{msg.content}</p>
+                      <p className="whitespace-pre-wrap">{msg.content}</p>
                     </div>
                     {msg.role === 'user' && (
                       <div
@@ -354,6 +457,27 @@ export const Home = () => {
                     )}
                   </motion.div>
                 ))}
+                {isLoading && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex gap-4 justify-start"
+                  >
+                    <div className="size-10 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center flex-shrink-0">
+                      <Sparkles className="size-5 text-white" />
+                    </div>
+                    <div
+                      className={`p-4 rounded-2xl ${
+                        theme === 'dark' ? 'bg-slate-800 text-white' : 'bg-white text-slate-900 border border-slate-200'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Loader2 className="size-4 animate-spin" />
+                        <span className="text-sm opacity-70">Analyzing your query...</span>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
                 <div ref={messagesEndRef} />
               </div>
             )}
@@ -387,8 +511,9 @@ export const Home = () => {
               <Input
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
                 placeholder="Ask me anything about your health..."
+                disabled={isLoading}
                 className={`flex-1 ${
                   theme === 'dark'
                     ? 'bg-slate-800 border-slate-700'
@@ -399,9 +524,10 @@ export const Home = () => {
               <Button
                 onClick={handleSendMessage}
                 size="icon"
+                disabled={isLoading || !message.trim()}
                 className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white size-10"
               >
-                <Send className="size-4" />
+                {isLoading ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
               </Button>
             </div>
           </div>

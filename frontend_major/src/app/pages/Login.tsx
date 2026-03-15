@@ -1,27 +1,35 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { useApp } from '../context/AppContext';
+import { login as apiLogin } from '../api';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
 import { motion } from 'motion/react';
-import { Sparkles, ArrowLeft, ChevronRight } from 'lucide-react';
+import { Sparkles, ArrowLeft, ChevronRight, Loader2 } from 'lucide-react';
 
 export const Login = () => {
   const navigate = useNavigate();
-  const { user } = useApp();
+  const { setUser, setAuthToken } = useApp();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    // Check if user has signed up
-    if (user) {
+    setError('');
+    setLoading(true);
+
+    try {
+      const res = await apiLogin(email, password);
+      setAuthToken(res.access_token);
+      setUser(res.user as any);
       navigate('/home');
-    } else {
-      alert('Please sign up first to create your profile.');
-      navigate('/signup');
+    } catch (err: any) {
+      setError(err.message || 'Invalid email or password');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -80,6 +88,12 @@ export const Login = () => {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-6">
+            {error && (
+              <div className="text-red-500 text-sm font-medium bg-red-500/10 border border-red-500/20 rounded-lg p-3">
+                {error}
+              </div>
+            )}
+
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
@@ -109,10 +123,20 @@ export const Login = () => {
             <Button
               type="submit"
               size="lg"
+              disabled={loading}
               className="w-full bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white shadow-lg shadow-violet-500/30 group"
             >
-              Sign In
-              <ChevronRight className="size-5 ml-2 group-hover:translate-x-1 transition-transform" />
+              {loading ? (
+                <>
+                  <Loader2 className="size-5 mr-2 animate-spin" />
+                  Signing In...
+                </>
+              ) : (
+                <>
+                  Sign In
+                  <ChevronRight className="size-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                </>
+              )}
             </Button>
 
             <div className="text-center">
