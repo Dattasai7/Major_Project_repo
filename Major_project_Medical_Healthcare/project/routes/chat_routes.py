@@ -35,7 +35,12 @@ async def send_chat(request: ChatRequest, current_user: dict = Depends(get_curre
     try:
         # Map frontend mode → venkat's source_type
         # "fda" → "approved", "experimental" → "experimental"
-        source_type = "approved" if mode == "fda" else "experimental"
+        if mode == "both":
+            source_type = "both"
+        elif mode == "fda":
+            source_type = "approved"
+        else:
+            source_type = "experimental"
         llm_response = await ai_diagnose(user_message, DEFAULT_KNOWLEDGE_CHUNKS, source_type)
     except Exception as e:
         llm_response = {"error": str(e), "source": "AI-RAG-Diagnosis"}

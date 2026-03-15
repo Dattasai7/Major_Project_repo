@@ -50,15 +50,19 @@ async def ai_diagnose(symptoms: str, knowledge_chunks: list, source_type: str = 
         disease_name = prediction.lower()
 
     # 2. Source Logic
+    is_fda = source_type in ["fda", "approved", "both"]
+    is_exp = source_type in ["experimental", "both"]
+
+    print("Source Type:", source_type)
     approved_data = []
     experimental_data = []
 
     # 3. Call APIs based on frontend selection
     tasks = []
-    if source_type in ["approved", "both"]:
+    if is_fda:
         tasks.append(fetch_from_fda(disease_name, "approved"))
     
-    if source_type in ["experimental", "both"]:
+    if is_exp:
         # You'll need the fetch_experimental_drugs function from earlier
         tasks.append(fetch_experimental_drugs(disease_name))
 
@@ -74,6 +78,9 @@ async def ai_diagnose(symptoms: str, knowledge_chunks: list, source_type: str = 
     
     if source_type in ["experimental", "both"]:
         experimental_data = results[idx] # Clinical trials are already structured
+
+    print("Approved:", approved_data)
+    print("Experimental:", experimental_data)
 
     return {
         "identified_condition": disease_name,

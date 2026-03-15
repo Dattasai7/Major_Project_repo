@@ -43,76 +43,62 @@ function formatResponse(response: any): string {
   if (!response) return 'No response received.';
   if (typeof response === 'string') return response;
 
-  // Error response
-  if (response.error) {
-    return `⚠️ ${response.error}`;
-  }
-
-  // Venkat's new ai_diagnose response shape
   if (response.identified_condition) {
-    let text = `🔬 **Diagnosis Result**\n\n`;
-    text += `**Identified Condition:** ${response.identified_condition}\n`;
-    text += `**Input Type:** ${response.input_type || 'N/A'}\n\n`;
+    let html = `<div class="space-y-6">`;
+    
+    // 1. Header & Condition
+    html += `<div>
+               <h3 class="text-lg font-bold border-b border-slate-700 pb-1">Diagnosis Summary</h3>
+               <p class="mt-2"><strong>Condition:</strong> <span class="text-indigo-400">${response.identified_condition.toUpperCase()}</span></p>
+             </div>`;
 
-    // Approved medications (from FDA)
+    // 2. FDA Approved Medications Section
     const meds = response.approved_medications || [];
     if (meds.length > 0) {
-      text += `💊 **Approved Medications** (${meds.length} found)\n\n`;
-      meds.slice(0, 5).forEach((drug: any, i: number) => {
-        text += `**${i + 1}. ${drug.drug_name || 'Unknown'}**\n`;
-        if (drug.primary_use) text += `   Use: ${drug.primary_use}\n`;
-        if (drug.start_dosage) text += `   Dosage: ${drug.start_dosage}\n`;
-        if (drug.frequency) text += `   Frequency: ${drug.frequency}\n`;
-        if (drug.important_warning) text += `   ⚠️ ${drug.important_warning}\n`;
-        text += '\n';
+      html += `<div><h4 class="font-bold text-violet-500 mb-3 flex items-center gap-2">
+                <span class="size-2 rounded-full bg-violet-500"></span> Clinical Treatments (FDA)
+               </h4>`;
+      meds.forEach((drug: any, i: number) => {
+        html += `<div class="mb-3 p-3 bg-slate-900/40 rounded-lg border border-slate-800 shadow-sm">`;
+        html += `<p class="font-bold text-indigo-300">${i + 1}. ${drug.drug_name}</p>`;
+        if (drug.primary_use) html += `<p class="text-sm mt-1 opacity-90"><strong>Usage:</strong> ${drug.primary_use}</p>`;
+        if (drug.start_dosage) html += `<p class="text-sm opacity-90"><strong>Dosage:</strong> ${drug.start_dosage}</p>`;
+        if (drug.important_warning) {
+          html += `<p class="text-xs mt-2 text-amber-500 italic bg-amber-500/10 p-2 rounded">Warning: ${drug.important_warning}</p>`;
+        }
+        html += `</div>`;
       });
+      html += `</div>`;
     }
 
-    // Experimental trials (from ClinicalTrials.gov)
+    // 3. Experimental Trials Section
     const trials = response.experimental_trials || [];
     if (trials.length > 0) {
-      text += `🧪 **Experimental Trials** (${trials.length} found)\n\n`;
-      trials.slice(0, 5).forEach((trial: any, i: number) => {
-        text += `**${i + 1}. ${trial.trial_title || 'Untitled Trial'}**\n`;
-        text += `   Drug: ${trial.drug_name || 'N/A'}\n`;
-        text += `   Status: ${trial.status || 'N/A'}\n`;
-        if (trial.description) text += `   ${trial.description}\n`;
-        text += '\n';
+      html += `<div><h4 class="font-bold text-amber-500 mb-3 flex items-center gap-2">
+                <span class="size-2 rounded-full bg-amber-500"></span> Experimental Trials
+               </h4>`;
+      trials.forEach((trial: any, i: number) => {
+        html += `<div class="mb-3 p-3 bg-amber-500/5 rounded-lg border border-amber-500/20 shadow-sm">`;
+        // Adjust these keys based on what your fetch_experimental_drugs actually returns
+        html += `<p class="font-bold text-amber-200">${trial.drug_name || trial.title || 'Experimental Drug'}</p>`;
+        if (trial.primary_use || trial.description) {
+            html += `<p class="text-sm mt-1 opacity-90">${trial.primary_use || trial.description}</p>`;
+        }
+        if (trial.phase) html += `<p class="text-xs mt-1 uppercase tracking-wider font-semibold text-amber-400/80">${trial.phase}</p>`;
+        html += `</div>`;
       });
+      html += `</div>`;
     }
 
+    // 4. If nothing was found
     if (meds.length === 0 && trials.length === 0) {
-      text += 'No medications or trials found for this condition.';
+        html += `<p class="text-slate-400 italic">No specific treatments or trials were identified for this condition.</p>`;
     }
 
-    return text;
+    html += `</div>`;
+    return html;
   }
-
-  // Legacy: AI-RAG-Diagnosis response (old shape)
-  if (response.source === 'AI-RAG-Diagnosis') {
-    let text = `🔬 **Diagnosis Result**\n\n`;
-    text += `**Identified Disease:** ${response.identified_disease || 'Unknown'}\n`;
-    text += `**Symptoms:** ${response.symptoms || 'N/A'}\n\n`;
-    if (response.data) {
-      text += `**Details:**\n${typeof response.data === 'string' ? response.data : JSON.stringify(response.data, null, 2)}`;
-    }
-    return text;
-  }
-
-  // FDA search response
-  if (response.source === 'openFDA') {
-    const drugs = response.data || [];
-    if (drugs.length === 0) return 'No FDA-approved drugs found for this query.';
-    let text = `💊 **FDA Drug Results** (${drugs.length} found)\n\n`;
-    drugs.slice(0, 5).forEach((drug: any, i: number) => {
-      text += `**${i + 1}. ${drug.brand_name}**\n`;
-      text += `   Generic: ${drug.generic_name}\n`;
-      text += `   Manufacturer: ${drug.manufacturer}\n`;
-      text += `   Purpose: ${drug.purpose}\n\n`;
-    });
-    return text;
-  }
-
+  
   return JSON.stringify(response, null, 2);
 }
 
@@ -120,7 +106,7 @@ export const Home = () => {
   const navigate = useNavigate();
   const { user, theme, toggleTheme, chatHistory, addChatMessage, updateChatMessages } = useApp();
   const [message, setMessage] = useState('');
-  const [mode, setMode] = useState<'fda' | 'experimental'>('fda');
+  const [mode, setMode] = useState<'fda' | 'experimental' | 'both'>('both');
   const [currentChat, setCurrentChat] = useState<{
     id: string;
     messages: { role: 'user' | 'assistant'; content: string; mode?: string }[];
@@ -342,7 +328,7 @@ export const Home = () => {
       </AnimatePresence>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col">
+      <div className="flex-1 flex flex-col h-screen overflow-hidden">
         {/* Header */}
         <div
           className={`border-b ${
@@ -393,8 +379,8 @@ export const Home = () => {
         </div>
 
         {/* Messages Area */}
-        <ScrollArea className="flex-1 p-6">
-          <div className="max-w-4xl mx-auto">
+        <ScrollArea className="flex-1 w-full overflow-y-auto">
+          <div className="w-full max-w-4xl mx-auto p-6 md:px-10 pb-24">
             {currentChat.messages.length === 0 ? (
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
@@ -416,7 +402,7 @@ export const Home = () => {
                 </p>
               </motion.div>
             ) : (
-              <div className="space-y-6">
+              <div className="space-y-6 pb-10">
                 {currentChat.messages.map((msg, index) => (
                   <motion.div
                     key={index}
@@ -440,11 +426,16 @@ export const Home = () => {
                       }`}
                     >
                       {msg.mode && (
-                        <span className="text-xs opacity-70 mb-2 block">
-                          {msg.mode === 'fda' ? 'FDA Approved' : 'Experimental'}
-                        </span>
+                      <span className="text-xs opacity-70 mb-2 block font-medium tracking-wide">
+                        {msg.mode === 'fda' && 'FDA Approved'}
+                        {msg.mode === 'experimental' && 'Experimental'}
+                        {msg.mode === 'both' && 'Combined Analysis'}
+                      </span>
                       )}
-                      <p className="whitespace-pre-wrap">{msg.content}</p>
+                      <div 
+                        className="prose prose-sm dark:prose-invert max-w-none leading-relaxed"
+                        dangerouslySetInnerHTML={{ __html: msg.content }}
+                      />
                     </div>
                     {msg.role === 'user' && (
                       <div
@@ -485,53 +476,55 @@ export const Home = () => {
         </ScrollArea>
 
         {/* Input Area */}
-        <div
-          className={`border-t ${
-            theme === 'dark' ? 'bg-slate-900/50 border-slate-800' : 'bg-white/50 border-slate-200'
-          } p-6`}
+<div className="w-full flex-shrink-0 px-6 pb-8 pt-2"> 
+  {/* Removed the border-t and background from the wrapper to make it transparent */}
+  <div className={`max-w-4xl mx-auto rounded-2xl shadow-2xl border ${
+    theme === 'dark' 
+      ? 'bg-slate-900/80 border-slate-800 backdrop-blur-xl' 
+      : 'bg-white/80 border-slate-200 backdrop-blur-xl'
+  } p-4`}>
+    {/* This inner div is what actually "pops out" */}
+    
+    <div className="flex items-center gap-3">
+      <Select value={mode} onValueChange={(val: 'fda' | 'experimental' | 'both') => setMode(val)}>
+        <SelectTrigger
+          className={`w-40 h-11 focus:ring-violet-500 ${
+            theme === 'dark'
+              ? 'bg-slate-800/50 border-slate-700'
+              : 'bg-slate-100 border-slate-200'
+          }`}
         >
-          <div className="max-w-4xl mx-auto">
-            <div className="flex items-end gap-3">
-              <Select value={mode} onValueChange={(val: 'fda' | 'experimental') => setMode(val)}>
-                <SelectTrigger
-                  className={`w-48 ${
-                    theme === 'dark'
-                      ? 'bg-slate-800 border-slate-700'
-                      : 'bg-white border-slate-300'
-                  }`}
-                >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className={theme === 'dark' ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-300'}>
-                  <SelectItem value="fda">FDA Approved</SelectItem>
-                  <SelectItem value="experimental">Experimental</SelectItem>
-                </SelectContent>
-              </Select>
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent className={theme === 'dark' ? 'bg-slate-900 border-slate-800' : 'bg-white'}>
+          <SelectItem value="fda">FDA Approved</SelectItem>
+          <SelectItem value="experimental">Experimental</SelectItem>
+          <SelectItem value="both">FDA and Experimental</SelectItem>
+        </SelectContent>
+      </Select>
 
-              <Input
-                value={message}
-                onChange={(e) => setMessage(e.target.value)}
-                onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
-                placeholder="Ask me anything about your health..."
-                disabled={isLoading}
-                className={`flex-1 ${
-                  theme === 'dark'
-                    ? 'bg-slate-800 border-slate-700'
-                    : 'bg-white border-slate-300'
-                }`}
-              />
+      <Input
+        value={message}
+        onChange={(e) => setMessage(e.target.value)}
+        onKeyDown={(e) => e.key === 'Enter' && !e.shiftKey && handleSendMessage()}
+        placeholder="Ask me anything about your health..."
+        disabled={isLoading}
+        className={`flex-1 h-11 border-none focus-visible:ring-1 focus-visible:ring-violet-500 ${
+          theme === 'dark' ? 'bg-transparent text-white' : 'bg-transparent text-slate-900'
+        }`}
+      />
 
-              <Button
-                onClick={handleSendMessage}
-                size="icon"
-                disabled={isLoading || !message.trim()}
-                className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 text-white size-10"
-              >
-                {isLoading ? <Loader2 className="size-4 animate-spin" /> : <Send className="size-4" />}
-              </Button>
-            </div>
-          </div>
-        </div>
+      <Button
+        onClick={handleSendMessage}
+        size="icon"
+        disabled={isLoading || !message.trim()}
+        className="bg-gradient-to-r from-violet-600 to-indigo-600 hover:shadow-lg hover:shadow-violet-500/30 transition-all duration-200 size-11 rounded-xl"
+      >
+        {isLoading ? <Loader2 className="size-5 animate-spin" /> : <Send className="size-5" />}
+      </Button>
+    </div>
+  </div>
+</div>
       </div>
     </div>
   );

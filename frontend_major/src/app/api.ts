@@ -116,7 +116,7 @@ export interface ChatResponse {
 
 export async function sendChat(
   message: string,
-  mode: "fda" | "experimental"
+  mode: "fda" | "experimental" | "both"
 ): Promise<ChatResponse> {
   return apiFetch("/chat", {
     method: "POST",
