@@ -27,6 +27,7 @@ async def fetch_from_fda(disease: str, status: str):
         if response.status_code != 200:
             return None
         
+        
         return response.json().get("results", [])
 
 

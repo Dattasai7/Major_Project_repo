@@ -6,7 +6,7 @@ from typing import List, Optional
 from dotenv import load_dotenv
 
 from Model.FDA_search import get_drugs, fetch_from_fda
-from Model.RAG_model import ai_diagnose
+from Model.RAG_model import ai_diagnose, get_drug_from_RAG
 from routes.auth_routes import router as auth_router
 from routes.chat_routes import router as chat_router
 
@@ -52,7 +52,8 @@ async def search_drugs(
 
 @app.get("/ai-diagnose")
 async def ai_diagnose_endpoint(
-    symptoms: str = Query(..., description="Describe your symptoms"),
+    symptoms: str = Query(..., description="Describe your symptoms or disease name"),
+    source_type: str = Query("both", description="approved, experimental, or both"),
     knowledge_chunks: Optional[List[str]] = Query(None),
 ):
     # If URL params are empty, use the DEFAULT list
