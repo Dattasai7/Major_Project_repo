@@ -6,7 +6,7 @@ from typing import List, Optional
 from dotenv import load_dotenv
 
 from Model.FDA_search import get_drugs, fetch_from_fda
-from Model.RAG_model import ai_diagnose
+from Model.RAG_model import ai_diagnose, get_drug_from_RAG
 from routes.auth_routes import router as auth_router
 from routes.chat_routes import router as chat_router
 

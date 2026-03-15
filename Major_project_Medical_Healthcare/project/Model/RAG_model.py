@@ -25,14 +25,16 @@ async def ai_diagnose(symptoms: str = str, knowledge_chunks = []):
     Symptoms: {symptoms}
     Disease: <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
 
-    # 3. Request to Hugging Face
     payload = {
         "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
-        "prompt": llama_prompt,
+        "prompt": "is dynamically defined inside the functions",
         "temperature": 0.1,
-        "max_tokens": 500,
+        "max_tokens": 20,
         "stop": ["<|eot_id|>"]
     }
+
+    # 3. Request to Hugging Face
+    payload["prompt"] = llama_prompt
     
     hf_res = requests.post(HF_API_URL, headers=HEADERS, json=payload)
     
@@ -47,7 +49,59 @@ async def ai_diagnose(symptoms: str = str, knowledge_chunks = []):
     # 4. Trigger the shared FDA search logic
     disease_name = disease_name.lower()
     data = await fetch_from_fda(disease_name, "approved")
-    
+    top_3_drugs = data[:3] if data else []
+        
+    final_ans = await get_drug_from_RAG(top_3_drugs, payload)
+
+    return {
+        "source": "AI-RAG-Diagnosis",
+        "identified_disease": disease_name,
+        "symptoms": symptoms,
+        "data": final_ans
+    }
+
+
+
+import json
+
+async def get_drug_from_RAG(data_list, payload):
+    if not data_list:
+        return []
+
+    structured_results = []
+
+    for drug_data in data_list:
+        raw_text = str(drug_data)
+
+        refine_prompt = f"""
+        <|begin_of_text|><|start_header_id|>system<|end_header_id|>
+        You are a medical data assistant. Convert the raw FDA text into a concise JSON object.
+        Respond ONLY with JSON.
+        <|eot_id|><|start_header_id|>user<|end_header_id|>
+        Raw Text: {raw_text[:2500]} 
+
+        Desired JSON Keys:
+        - drug_name
+        - primary_use
+        - start_dosage
+        - frequency
+        - important_warning
+        <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
+
+        payload["prompt"] = refine_prompt
+        payload["max_tokens"] = 500 # Reduced per drug to save total time/tokens
+        
+        try:
+            new_res = requests.post(HF_API_URL, headers=HEADERS, json=payload)
+            if new_res.status_code == 200:
+                ai_response = new_res.json()['choices'][0]['text'].strip()
+                # Parse string to JSON object so the frontend gets a clean array of objects
+                structured_results.append(json.loads(ai_response))
+        except Exception as e:
+            print(f"Error processing a drug: {e}")
+            continue
+
+    return structured_results
     raw_text = str(data[0]) # Convert the top drug match to a string
 
     # 2. Second LLM call to "summarize and structure"
@@ -67,25 +121,11 @@ async def ai_diagnose(symptoms: str = str, knowledge_chunks = []):
     <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
 
     payload["prompt"] = refine_prompt
+    payload["max_tokens"] = 1000
     # print(payload)
     new_res = requests.post(HF_API_URL, headers=HEADERS, json=payload)
 
     if new_res.status_code != 200:
         raise HTTPException(status_code=500, detail="AI service currently unavailable.")
         
-    final_ans = new_res.json()['choices'][0]['text'].strip()
-
-    return {
-        "source": "AI-RAG-Diagnosis",
-        "identified_disease": disease_name,
-        "symptoms": symptoms,
-        "data": final_ans
-    }
-
-
-{
-  "source": "AI-RAG-Diagnosis",
-  "identified_disease": "alzheimers",
-  "symptoms": "memory loss and confusion",
-  "data": "{\n  \"drug_name\": \"Rivastigmine Tartrate\",\n  \"primary"
-}
+    return new_res.json()['choices'][0]['text'].strip()
