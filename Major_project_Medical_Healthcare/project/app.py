@@ -52,7 +52,8 @@ async def search_drugs(
 
 @app.get("/ai-diagnose")
 async def ai_diagnose_endpoint(
-    symptoms: str = Query(..., description="Describe your symptoms"),
+    symptoms: str = Query(..., description="Describe your symptoms or disease name"),
+    source_type: str = Query("both", description="approved, experimental, or both"),
     knowledge_chunks: Optional[List[str]] = Query(None),
 ):
     # If URL params are empty, use the DEFAULT list

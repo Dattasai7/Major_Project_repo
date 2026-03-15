@@ -3,63 +3,84 @@ import httpx
 from fastapi import HTTPException, Query
 import requests
 import os
+import asyncio
+from .ExperimentalDrug import fetch_experimental_drugs
 from dotenv import load_dotenv
 
 load_dotenv()
 HF_API_URL = "https://router.huggingface.co/featherless-ai/v1/completions"
 HEADERS = {"Authorization": f"Bearer {os.getenv('HUGGINGFACE_API_KEY')}"}
 
-async def ai_diagnose(symptoms: str = str, knowledge_chunks = []):
-    # print(HEADERS)
-    """This is the RAG endpoint using Llama-3.1-8B"""
+async def ai_diagnose(symptoms: str, knowledge_chunks: list, source_type: str = "both"):
+    """Router endpoint to identify intent and fetch correct data"""
     
-    # 1. Retrieval (Basic keyword match for now)
-    input_words = set(symptoms.lower().split())
-    context = "\n".join([c for c in knowledge_chunks if any(w in c.lower() for w in input_words)])
-    
-    # 2. Llama 3.1 Prompting
-    llama_prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-    Identify the disease from the context. Output ONLY the name. If unknown, say Unknown.
-    Context: {context}
+    # 1. Intent Classification Prompt
+    # We ask the AI to determine if it's a symptom or a disease and extract the core condition
+    # 1. Intent Classification Prompt
+    intent_prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+    You are a medical classifier. Identify if the input is a DISEASE or SYMPTOMS.
+    Then, extract ONLY the name of the most likely disease.
+    Format your response exactly like this: Type | Disease
+    Example: SYMPTOMS | Migraine
     <|eot_id|><|start_header_id|>user<|end_header_id|>
-    Symptoms: {symptoms}
-    Disease: <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
+    Input: {symptoms}
+    <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
 
     payload = {
         "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
-        "prompt": "is dynamically defined inside the functions",
+        "prompt": intent_prompt,
         "temperature": 0.1,
-        "max_tokens": 20,
-        "stop": ["<|eot_id|>"]
+        "max_tokens": 30
     }
 
-    # 3. Request to Hugging Face
-    payload["prompt"] = llama_prompt
-    
     hf_res = requests.post(HF_API_URL, headers=HEADERS, json=payload)
+    prediction = hf_res.json()['choices'][0]['text'].strip()
     
-    if hf_res.status_code != 200:
-        raise HTTPException(status_code=500, detail="AI service currently unavailable.")
-        
-    disease_name = hf_res.json()['choices'][0]['text'].strip()
+    # Simple split to get the disease name (e.g., "SYMPTOMS | Alzheimer's")
+    disease_name = prediction.split("|")[-1].strip().lower()
 
-    if "Unknown" in disease_name or not disease_name:
-        raise HTTPException(status_code=404, detail="Could not map symptoms to a known disease.")
+    if "|" in prediction:
+        # Split by pipe and take the last part, then strip any extra AI chatter
+        parts = prediction.split("|")
+        disease_name = parts[-1].strip().lower()
+        # Remove any trailing periods or conversational fluff if AI was chatty
+        disease_name = disease_name.split(".")[0].split("\n")[0].strip()
+    else:
+        # Fallback: if AI failed format, treat the whole response as the name
+        disease_name = prediction.lower()
 
-    # 4. Trigger the shared FDA search logic
-    disease_name = disease_name.lower()
-    data = await fetch_from_fda(disease_name, "approved")
-    top_3_drugs = data[:3] if data else []
-        
-    final_ans = await get_drug_from_RAG(top_3_drugs, payload)
+    # 2. Source Logic
+    approved_data = []
+    experimental_data = []
+
+    # 3. Call APIs based on frontend selection
+    tasks = []
+    if source_type in ["approved", "both"]:
+        tasks.append(fetch_from_fda(disease_name, "approved"))
+    
+    if source_type in ["experimental", "both"]:
+        # You'll need the fetch_experimental_drugs function from earlier
+        tasks.append(fetch_experimental_drugs(disease_name))
+
+    # Run calls in parallel
+    results = await asyncio.gather(*tasks)
+
+    # Map results back to variables
+    idx = 0
+    if source_type in ["approved", "both"]:
+        approved_raw = results[idx]
+        approved_data = await get_drug_from_RAG(approved_raw[:3], payload)
+        idx += 1
+    
+    if source_type in ["experimental", "both"]:
+        experimental_data = results[idx] # Clinical trials are already structured
 
     return {
-        "source": "AI-RAG-Diagnosis",
-        "identified_disease": disease_name,
-        "symptoms": symptoms,
-        "data": final_ans
+        "identified_condition": disease_name,
+        "input_type": prediction.split("|")[0].strip(),
+        "approved_medications": approved_data,
+        "experimental_trials": experimental_data
     }
-
 
 
 import json
