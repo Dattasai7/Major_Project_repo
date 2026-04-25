@@ -60,7 +60,7 @@ async def ai_diagnose_endpoint(
     chunks_to_use = knowledge_chunks if knowledge_chunks else DEFAULT_KNOWLEDGE_CHUNKS
 
     try:
-        return await ai_diagnose(symptoms, chunks_to_use)
+        return await ai_diagnose(symptoms, chunks_to_use, source_type)
     except Exception as e:
         # This will show you the ACTUAL error in your terminal
         print(f"CRITICAL ERROR: {str(e)}")

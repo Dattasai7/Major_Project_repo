@@ -1,0 +1,39 @@
+Disease: Alzheimer's Disease
+Symptoms: Memory loss, confusion, difficulty thinking and understanding, disorientation, getting lost in familiar places, changes in personality and behavior.
+Type: Neurological condition affecting brain function.
+
+Disease: Diabetes Mellitus (Type 2)
+Symptoms: Increased thirst, frequent urination, increased hunger, unintended weight loss, fatigue, blurred vision, slow-healing sores, frequent infections.
+Type: Metabolic disease causing high blood sugar.
+
+Disease: Asthma
+Symptoms: Shortness of breath, chest tightness or pain, wheezing when exhaling, trouble sleeping caused by shortness of breath, coughing or wheezing attacks.
+Type: Respiratory condition.
+
+Disease: Influenza (Flu)
+Symptoms: Fever, chills, muscle aches, cough, congestion, runny nose, headaches, fatigue.
+Type: Viral respiratory illness.
+
+Disease: Tuberculosis (TB)
+Symptoms: Persistent cough lasting more than three weeks, chest pain, coughing up blood, fatigue, night sweats, chills, fever, loss of appetite, weight loss.
+Type: Bacterial infection primarily affecting lungs.
+
+Disease: Migraine
+Symptoms: Severe throbbing headache or pulsing pain, usually on one side of the head. Accompanied by nausea, vomiting, and extreme sensitivity to light and sound.
+Type: Neurological condition.
+
+Disease: Myocardial Infarction (Heart Attack)
+Symptoms: Chest pain or discomfort (pressure, squeezing, fullness), shortness of breath, pain radiating to the left arm, back, neck, jaw, or stomach, cold sweat, lightheadedness.
+Type: Cardiovascular emergency.
+
+Disease: Rheumatoid Arthritis
+Symptoms: Joint pain, tender and swollen joints, joint stiffness that is usually worse in the mornings, fatigue, fever, loss of appetite.
+Type: Autoimmune and inflammatory disease.
+
+Disease: Hypertension (High Blood Pressure)
+Symptoms: Often asymptomatic (silent killer). In severe cases: headaches, shortness of breath, nosebleeds, flushing, dizziness, chest pain.
+Type: Cardiovascular condition.
+
+Disease: Parkinson's Disease
+Symptoms: Tremor (shaking) usually beginning in a limb, slow movement (bradykinesia), rigid muscles, impaired posture and balance, loss of automatic movements, speech changes.
+Type: Neurological movement disorder.

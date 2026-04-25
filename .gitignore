@@ -43,3 +43,17 @@ venv/
 ENV/
 env/
 *.venv/
+
+# FAISS Index & Generated Data
+faiss_medical_index/
+*.sqlite3
+*.db
+
+# Images and Media
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.webp
