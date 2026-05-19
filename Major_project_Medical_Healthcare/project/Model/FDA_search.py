@@ -35,10 +35,7 @@ async def get_drugs(
     disease: str, 
     status: str = Query("approved", description="e.g., approved, experimental")
 ):
-    # 1. Try to get data from your MongoDB first (Cache-aside pattern)
-    # [Your existing MongoDB logic here]
-    
-    # 2. If not found or you want fresh data, call FDA
+    # Fetch from openFDA
     fda_results = await fetch_from_fda(disease, status)
     
     if not fda_results:

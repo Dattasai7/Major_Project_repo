@@ -28,7 +28,7 @@ except Exception as e:
     print(f"❌ Could not find FAISS index at {DB_PATH}. Run ingest_data.py first!")
     retriever = None
 
-HF_API_URL = "https://router.huggingface.co/featherless-ai/v1/completions"
+HF_API_URL = "https://router.huggingface.co/v1/chat/completions"
 HEADERS = {"Authorization": f"Bearer {os.getenv('HUGGINGFACE_API_KEY_1')}"}
 usingsecondtoken = False
 
@@ -47,24 +47,48 @@ async def ai_diagnose(symptoms: str, knowledge_chunks: list, source_type: str = 
     print(f"\n🔍 [DEBUG RAG] Retrieved Context mapped to Prompt:\n{context}\n")
 
     # 2. AUGMENTED PROMPT (Giving the AI context to prevent hallucinations)
-    rag_prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
-    You are a medical diagnostic assistant.
-    If the MEDICAL CONTEXT contains the answer, use it and label the source as "RAG".
-    If the MEDICAL CONTEXT does NOT contain the answer, use your general medical knowledge and label the source as "General Knowledge".
+    # rag_prompt = f"""<|begin_of_text|><|start_header_id|>system<|end_header_id|>
+    # You are a medical diagnostic assistant.
+    # If the MEDICAL CONTEXT contains the answer, use it and label the source as "RAG".
+    # If the MEDICAL CONTEXT does NOT contain the answer, use your general medical knowledge and label the source as "General Knowledge".
     
-    Analyze the symptoms and return ONLY in this exact format:
-    Source | Type | Disease Name
+    # Analyze the symptoms and return ONLY in this exact format:
+    # Source | Type | Disease Name
     
-    MEDICAL CONTEXT:
-    {context}
-    <|eot_id|><|start_header_id|>user<|end_header_id|>
-    Symptoms: {symptoms}
-    <|eot_id|><|start_header_id|>assistant<|end_header_id|>
-    Note: If no context is provided, use your general medical knowledge but remain cautious."""
+    # MEDICAL CONTEXT:
+    # {context}
+    # <|eot_id|><|start_header_id|>user<|end_header_id|>
+    # Symptoms: {symptoms}
+    # <|eot_id|><|start_header_id|>assistant<|end_header_id|>
+    # Note: If no context is provided, use your general medical knowledge but remain cautious."""
 
     payload = {
-        "model": "meta-llama/Meta-Llama-3.1-8B-Instruct",
-        "prompt": rag_prompt,
+        "model": "meta-llama/Llama-3.1-8B-Instruct:featherless-ai",
+        "messages": [
+            {
+            "role": "system",
+            "content": """
+                You are a medical diagnostic assistant.
+
+                If the MEDICAL CONTEXT contains the answer, use it and label the source as "RAG".
+
+                If the MEDICAL CONTEXT does NOT contain the answer, use your general medical knowledge and label the source as "General Knowledge".
+
+                Return ONLY in this format:
+                Source | Type | Disease Name
+                """
+                        },
+                        {
+                            "role": "user",
+                            "content": f"""
+                MEDICAL CONTEXT:
+                {context}
+
+                Symptoms:
+                {symptoms}
+                """
+        }
+        ],
         "temperature": 0.1,
         "max_tokens": 30
     }
@@ -89,7 +113,7 @@ async def ai_diagnose(symptoms: str, knowledge_chunks: list, source_type: str = 
             HEADERS["Authorization"] = f"Bearer {os.getenv('HUGGINGFACE_API_KEY_3')}"
         hf_res = requests.post(HF_API_URL, headers=HEADERS, json=payload)
         # return {"identified_condition": "error", "approved_medications": [], "experimental_trials": []}
-    prediction = hf_res.json()['choices'][0]['text'].strip()
+    prediction = hf_res.json()['choices'][0]['message']['content'].strip()
     
     # Improved split to safely extract Source, Type, and Disease Name
     parts = [p.strip() for p in prediction.split("|")]
@@ -170,12 +194,37 @@ async def get_drug_from_RAG(data_list, payload):
     for drug_data in data_list:
         raw_text = str(drug_data)
 
-        refine_prompt = f"""
-        <|begin_of_text|><|start_header_id|>system<|end_header_id|>
-        You are a medical data assistant. Convert the raw FDA text into a concise JSON object.
-        Respond ONLY with JSON.
-        <|eot_id|><|start_header_id|>user<|end_header_id|>
-        Raw Text: {raw_text[:2500]} 
+        # refine_prompt = f"""
+        # <|begin_of_text|><|start_header_id|>system<|end_header_id|>
+        # You are a medical data assistant. Convert the raw FDA text into a concise JSON object.
+        # Respond ONLY with JSON.
+        # <|eot_id|><|start_header_id|>user<|end_header_id|>
+        # Raw Text: {raw_text[:2500]} 
+
+        # Desired JSON Keys:
+        # - drug_name
+        # - primary_use
+        # - start_dosage
+        # - frequency
+        # - important_warning
+        # <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
+
+        payload["messages"] = [
+            {
+                "role": "system",
+                "content": """
+        You are a medical data assistant.
+
+        Convert raw FDA text into a concise JSON object.
+
+        Respond ONLY with valid JSON.
+        """
+            },
+            {
+                "role": "user",
+                "content": f"""
+        Raw FDA Data:
+        {raw_text[:2500]}
 
         Desired JSON Keys:
         - drug_name
@@ -183,9 +232,9 @@ async def get_drug_from_RAG(data_list, payload):
         - start_dosage
         - frequency
         - important_warning
-        <|eot_id|><|start_header_id|>assistant<|end_header_id|>"""
-
-        payload["prompt"] = refine_prompt
+        """
+            }
+        ]
         payload["max_tokens"] = 500 # Reduced per drug to save total time/tokens
         
         try:
@@ -196,7 +245,7 @@ async def get_drug_from_RAG(data_list, payload):
                 total_refinement_tokens += res_json["usage"]["total_tokens"]
 
             if new_res.status_code == 200:
-                ai_response = new_res.json()['choices'][0]['text'].strip()
+                ai_response = new_res.json()['choices'][0]['message']['content'].strip()
                 # Parse string to JSON object so the frontend gets a clean array of objects
                 structured_results.append(json.loads(ai_response))
         except Exception as e:
