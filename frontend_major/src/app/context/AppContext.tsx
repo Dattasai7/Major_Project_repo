@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { getMe, getToken, setToken as storeToken, clearToken } from '../api';
+import { getMe, getToken, setToken as storeToken, clearToken, getChatHistory, formatResponse } from '../api';
 import type { UserData as ApiUserData } from '../api';
 
 export interface UserData {
@@ -44,42 +44,69 @@ export interface ChatMessage {
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
+const chatKey = (uid: string) => `chatHistory_${uid}`;
+
 export const AppProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUserState] = useState<UserData | null>(null);
   const [token, setTokenState] = useState<string | null>(getToken());
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
+  const [userId, setUserId] = useState<string | null>(null);
 
-  // Load theme and chat history from localStorage
+  // Load theme from localStorage on mount
   useEffect(() => {
     const savedTheme = localStorage.getItem('theme');
-    const savedChats = localStorage.getItem('chatHistory');
-
     if (savedTheme) {
       setTheme(savedTheme as 'dark' | 'light');
     }
-    if (savedChats) {
-      setChatHistory(JSON.parse(savedChats));
-    }
   }, []);
 
-  // On mount (or when token changes), fetch user profile from backend
+  // On mount (or when token changes), fetch user profile and chat history from backend
   useEffect(() => {
     if (token) {
       getMe()
         .then((data) => {
           setUserState(data as unknown as UserData);
           localStorage.setItem('userData', JSON.stringify(data));
+          const uid = (data as any).id as string;
+          setUserId(uid);
+
+          // Load localStorage immediately so the UI isn't blank while the network call runs
+          const saved = localStorage.getItem(chatKey(uid));
+          if (saved) setChatHistory(JSON.parse(saved));
+
+          // Always sync from backend so history loads on any device/browser
+          getChatHistory()
+            .then(({ history }) => {
+              const reconstructed: ChatMessage[] = history.map((conv) => ({
+                id: conv.id,
+                title: conv.title,
+                isPinned: false,
+                timestamp: new Date(conv.timestamp),
+                messages: conv.messages.map((msg) => ({
+                  role: msg.role as 'user' | 'assistant',
+                  content: msg.role === 'assistant' ? formatResponse(msg.content) : msg.content,
+                  mode: msg.mode,
+                })),
+              }));
+              setChatHistory(reconstructed);
+              localStorage.setItem(chatKey(uid), JSON.stringify(reconstructed));
+            })
+            .catch(() => { /* keep localStorage version on network failure */ });
         })
         .catch(() => {
           // Token is invalid or expired – clear it
           clearToken();
           setTokenState(null);
           setUserState(null);
+          setUserId(null);
+          setChatHistory([]);
           localStorage.removeItem('userData');
         });
     } else {
-      // No token – try to restore user from localStorage (offline fallback)
+      // No token
+      setUserId(null);
+      setChatHistory([]);
       const savedUser = localStorage.getItem('userData');
       if (savedUser) {
         setUserState(JSON.parse(savedUser));
@@ -114,9 +141,9 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const logout = () => {
     setUserState(null);
     setTokenState(null);
+    setUserId(null);
     clearToken();
     localStorage.removeItem('userData');
-    localStorage.removeItem('chatHistory');
     setChatHistory([]);
   };
 
@@ -129,7 +156,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
   const addChatMessage = (message: ChatMessage) => {
     const updatedHistory = [...chatHistory, message];
     setChatHistory(updatedHistory);
-    localStorage.setItem('chatHistory', JSON.stringify(updatedHistory));
+    if (userId) localStorage.setItem(chatKey(userId), JSON.stringify(updatedHistory));
   };
 
   const updateChatMessages = (id: string, messages: ChatMessage['messages']) => {
@@ -137,12 +164,12 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       chat.id === id ? { ...chat, messages } : chat
     );
     setChatHistory(updatedHistory);
-    localStorage.setItem('chatHistory', JSON.stringify(updatedHistory));
+    if (userId) localStorage.setItem(chatKey(userId), JSON.stringify(updatedHistory));
   };
 
   const clearChatHistory = () => {
     setChatHistory([]);
-    localStorage.removeItem('chatHistory');
+    if (userId) localStorage.removeItem(chatKey(userId));
   };
 
   const renameChat = (id: string, newTitle: string) => {
@@ -150,7 +177,7 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       chat.id === id ? { ...chat, title: newTitle } : chat
     );
     setChatHistory(updatedHistory);
-    localStorage.setItem('chatHistory', JSON.stringify(updatedHistory));
+    if (userId) localStorage.setItem(chatKey(userId), JSON.stringify(updatedHistory));
   };
 
   const pinChat = (id: string) => {
@@ -158,13 +185,13 @@ export const AppProvider = ({ children }: { children: ReactNode }) => {
       chat.id === id ? { ...chat, isPinned: !chat.isPinned } : chat
     );
     setChatHistory(updatedHistory);
-    localStorage.setItem('chatHistory', JSON.stringify(updatedHistory));
+    if (userId) localStorage.setItem(chatKey(userId), JSON.stringify(updatedHistory));
   };
 
   const deleteChat = (id: string) => {
     const updatedHistory = chatHistory.filter(chat => chat.id !== id);
     setChatHistory(updatedHistory);
-    localStorage.setItem('chatHistory', JSON.stringify(updatedHistory));
+    if (userId) localStorage.setItem(chatKey(userId), JSON.stringify(updatedHistory));
   };
 
   return (

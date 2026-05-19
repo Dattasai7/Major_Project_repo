@@ -57,3 +57,4 @@ faiss_medical_index/
 *.svg
 *.ico
 *.webp
+*.claude

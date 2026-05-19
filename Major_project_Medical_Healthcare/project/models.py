@@ -24,6 +24,7 @@ class LoginRequest(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     mode: Optional[str] = "experimental"  # "fda" or "experimental"
+    session_id: Optional[str] = None  # frontend conversation ID for grouping messages
 
 
 class ProfileUpdateRequest(BaseModel):

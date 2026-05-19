@@ -52,6 +52,7 @@ async def send_chat(request: ChatRequest, current_user: dict = Depends(get_curre
         "message": user_message,
         "mode": mode,
         "response": llm_response,
+        "session_id": request.session_id,
         "timestamp": datetime.now(timezone.utc).isoformat(),
     }
     await chat_history_collection.insert_one(chat_doc)
@@ -66,19 +67,37 @@ async def send_chat(request: ChatRequest, current_user: dict = Depends(get_curre
 
 @router.get("/history")
 async def get_chat_history(current_user: dict = Depends(get_current_user)):
-    """Return the chat history for the current user, ordered by timestamp."""
+    """Return the chat history for the current user grouped into conversations."""
     cursor = chat_history_collection.find(
         {"user_id": current_user["id"]}
     ).sort("timestamp", 1)
 
-    history = []
+    sessions: dict = {}
+    session_order: list = []
+
     async for doc in cursor:
-        history.append({
-            "id": str(doc["_id"]),
-            "message": doc["message"],
-            "mode": doc.get("mode", "experimental"),
-            "response": doc["response"],
-            "timestamp": doc["timestamp"],
+        # Old records without session_id get their own session (one message pair each)
+        sid = doc.get("session_id") or str(doc["_id"])
+        mode = doc.get("mode", "experimental")
+
+        if sid not in sessions:
+            sessions[sid] = {
+                "id": sid,
+                "title": doc["message"][:50],
+                "timestamp": doc["timestamp"],
+                "messages": [],
+            }
+            session_order.append(sid)
+
+        sessions[sid]["messages"].append({
+            "role": "user",
+            "content": doc["message"],
+            "mode": mode,
+        })
+        sessions[sid]["messages"].append({
+            "role": "assistant",
+            "content": doc["response"],
+            "mode": mode,
         })
 
-    return {"history": history}
+    return {"history": [sessions[sid] for sid in session_order]}

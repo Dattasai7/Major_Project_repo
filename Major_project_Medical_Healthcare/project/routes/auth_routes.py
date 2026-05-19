@@ -29,8 +29,6 @@ def _build_user_response(user_doc) -> UserResponse:
 @router.post("/signup", response_model=TokenResponse)
 async def signup(request: SignupRequest):
     """Register a new user and return a JWT token."""
-    for i in request:
-        print(i, end='\n')
     # Check if user already exists
     existing_user = await users_collection.find_one({"email": request.email})
     if existing_user:
